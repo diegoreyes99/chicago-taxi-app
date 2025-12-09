@@ -20,48 +20,56 @@ st.markdown("Integrated platform for Fare Prediction (AI) and Business Intellige
 # =========================================================
 # 2. RESOURCE LOADING (Model + Gold Data from Cloud)
 # =========================================================
-# Define your bucket path here
 BUCKET_NAME = 'final_project_051225'
 GOLD_PATH = f"gs://{BUCKET_NAME}/gold"
 
+# --- CORRECCIÓN: Quitamos st.toast y st.error de aquí adentro ---
 @st.cache_resource
 def load_resources():
     """
     Loads the Machine Learning model from disk and
     downloads the Gold Layer statistics directly from GCS.
     """
+    model = None
+    df_hour = pd.DataFrame()
+    df_day = pd.DataFrame()
+    error_message = None
+
     try:
         # A. Load Local Model (.pkl)
-        # Ensure the filename matches exactly what you downloaded
         with open('modelo_taxi_fare.pkl', 'rb') as f:
             model = pickle.load(f)
 
         # B. Load Gold Data from Google Cloud Storage ☁️
-        # Pandas uses 'gcsfs' internally to read gs:// paths
         try:
             df_hour = pd.read_csv(f"{GOLD_PATH}/gold_stats_hour.csv")
             df_day = pd.read_csv(f"{GOLD_PATH}/gold_stats_day.csv")
-            # Notification for the user
-            st.toast("Gold Data successfully loaded from GCS ☁️", icon="✅")
         except Exception as e:
-            st.error(f"Error reading from Bucket: {e}")
-            # Create empty DataFrames to prevent app crash
-            df_hour = pd.DataFrame()
-            df_day = pd.DataFrame()
+            # We don't stop the app, just log the error internally
+            print(f"Warning: Could not load Gold data: {e}")
 
-        return model, df_hour, df_day
+        return model, df_hour, df_day, None
 
     except FileNotFoundError:
-        return None, None, None
+        return None, None, None, "Model file not found."
+    except Exception as e:
+        return None, None, None, str(e)
 
-# Load everything
-model, df_hour, df_day = load_resources()
+# --- EJECUCIÓN: Aquí afuera sí podemos usar st.toast ---
+model, df_hour, df_day, error_msg = load_resources()
 
-# Critical Error Handler
-if model is None:
-    st.error("⚠️ Critical Error: 'modelo_taxi_river.pkl' not found.")
-    st.warning("Please make sure to upload the .pkl file to the app directory.")
+# Manejo de Errores Visuales
+if error_msg:
+    st.error(f"⚠️ Critical Error: {error_msg}")
     st.stop()
+
+if model is None:
+    st.error("⚠️ Critical Error: Model could not be loaded.")
+    st.stop()
+
+# Notificación de Éxito (Solo si cargó la data de la nube)
+if not df_hour.empty:
+    st.toast("Gold Data successfully loaded from Cloud ☁️", icon="✅")
 
 # =========================================================
 # 3. APP STRUCTURE (TABS)
@@ -91,7 +99,7 @@ with tab1:
         submitted = st.form_submit_button("💰 Calculate Fare", use_container_width=True)
 
     if submitted:
-        # A. Map inputs to numbers (Must match training exactly)
+        # A. Map inputs to numbers
         day_map = {
             'Monday': 0, 'Tuesday': 1, 'Wednesday': 2, 'Thursday': 3,
             'Friday': 4, 'Saturday': 5, 'Sunday': 6
@@ -113,9 +121,8 @@ with tab1:
             st.markdown("---")
             st.success(f"### Estimated Fare: ${prediction:.2f} USD")
 
-            # E. Comparative Insight (Using Gold Data)
+            # E. Comparative Insight
             if not df_hour.empty:
-                # Find the historical average for this specific hour
                 avg_fare_at_hour = df_hour[df_hour['Hour'] == hour]['Avg_Fare'].values[0]
                 diff = prediction - avg_fare_at_hour
 
@@ -135,7 +142,7 @@ with tab2:
     st.subheader("Historical Market Trends (Gold Layer)")
 
     if df_hour.empty or df_day.empty:
-        st.warning("⚠️ Gold data could not be loaded from the Bucket.")
+        st.warning("⚠️ Gold data is not available (Check bucket permissions or data upload).")
     else:
         # Section 1: KPIs
         st.markdown("#### 📌 Key Performance Indicators")
