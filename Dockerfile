@@ -8,7 +8,7 @@ WORKDIR /app
 COPY requirements.txt .
 COPY app.py .
 # IMPORTANT: The model is copied here, but the CSVs stay in the cloud
-COPY modelo_taxi_river.pkl .
+COPY modelo_taxi_fare.pkl .
 
 # Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt

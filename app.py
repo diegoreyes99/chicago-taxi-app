@@ -33,7 +33,7 @@ def load_resources():
     try:
         # A. Load Local Model (.pkl)
         # Ensure the filename matches exactly what you downloaded
-        with open('modelo_taxi_river.pkl', 'rb') as f:
+        with open('modelo_taxi_fare.pkl', 'rb') as f:
             model = pickle.load(f)
 
         # B. Load Gold Data from Google Cloud Storage ☁️
